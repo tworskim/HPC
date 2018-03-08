@@ -13,8 +13,10 @@
 #include "omp.h"
 #include<random>
 #include<chrono>
+#include <map>
 
 using namespace std;
+typedef std::map<vector<int>, int> Map;
 mt19937 gen(chrono::system_clock::now().time_since_epoch().count());
 
 template <class T> void listShuffle(list<T> &L){
@@ -56,12 +58,11 @@ std::vector<std::list<std::vector<int>>> splitlist(int lengthmax, int numlist, c
 }
 
 
-std::list<std::vector<int>> read_edges(std::string filepath){
+std::list<std::pair<std::vector<int>,int>> read_edges(std::string filepath){
 
   // Read file
   int n_verts;
   int n_faces;
-
   std::vector<std::string> strs;
   std::ifstream file;
   file.open(filepath);
@@ -73,6 +74,7 @@ std::list<std::vector<int>> read_edges(std::string filepath){
 
   n_verts = std::stoi(strs[0]);
   n_faces =  std::stoi(strs[1]);
+  cout << n_faces + n_verts<< "\n";
 
   std::vector<std::vector<float>> verts(n_verts, std::vector<float>(3));
   std::vector<std::vector<int>> faces(n_faces, std::vector<int>(3));
@@ -102,8 +104,7 @@ std::list<std::vector<int>> read_edges(std::string filepath){
 
   //strip faces
 
-  //std::vector<std::vector<int>> edges(3*n_faces, std::vector<int>(4));
-
+  /*
   std::list<std::vector<int>>edges;
 
   for (int i = 0; i < n_faces; i++){
@@ -126,18 +127,41 @@ std::list<std::vector<int>> read_edges(std::string filepath){
     edges.push_back (edge2);
     edges.push_back (edge3);
   }
+  */
+  std::list<std::pair<std::vector<int>,int>>edges;
+  for (int i = 0; i < n_faces; i++){
+
+    std::vector<int> edge1(2);
+    std::vector<int> edge2(2);
+    std::vector<int> edge3(2);
+
+    edge1[0] = faces[i][0];
+    edge1[1] = faces[i][1];
+    //edge1[2] = i;
+    edge2[0] = faces[i][0];
+    edge2[1] = faces[i][2];
+    //edge2[2] = i;
+    edge3[0] = faces[i][1];
+    edge3[1] = faces[i][2];
+    //edge3[2] = i;
+
+    edges.push_back (std::pair<std::vector<int>, int>(edge1, i));
+    edges.push_back (std::pair<std::vector<int>, int>(edge2, i));
+    edges.push_back (std::pair<std::vector<int>, int>(edge3, i));
+  }
 
   return(edges);
+
 }
 
 // match edges;
 
 int main(int argc, char* argv[]){
 
-  std::string filepath = "trimstar.off";
+  std::string filepath = "Armadillo.off";
 
-  std::list<std::vector<int>> edges = read_edges(filepath);
-
+  //std::list<std::vector<int>> edges = read_edges(filepath);
+  std::list<std::pair<vector<int>, int>> edges = read_edges(filepath);
   int total = edges.size();
   double start_time;      // Starting time
   double run_time;        // Timing
@@ -152,17 +176,17 @@ int main(int argc, char* argv[]){
   std::vector<std::vector<int>> newedges;
 
   while(!edges.empty()){
-    
+
     partial = total - edges.size();
     std::list<std::vector<int>>::iterator edge = edges.begin();
     std::list<std::vector<int>>::iterator it = std::next(edge,0);
     bool found = false;
-    
+
     while (std::next(it,1) != edges.end() && !found){
       it++;
 
       if((*edge)[0]==(*it)[0] && !found && (*edge)[1]==(*it)[1]){
-	
+
         std::vector<int> newe(2);
         newe[0] = (*edge)[2];
         newe[1] = (*it)[2];
@@ -179,10 +203,11 @@ int main(int argc, char* argv[]){
 
   run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
   printf("%f", run_time);*/
-  
+
   //sequentiel/parallele  non naif
+  /*
   //split list
-  
+
   int nbthread = std::thread::hardware_concurrency();
 
   int lengthmax = total/nbthread + 1;
@@ -205,7 +230,7 @@ int main(int argc, char* argv[]){
       }
     //lengthmax = lenres/numlist;
     //cout <<"numlist "<<numlist <<" n " << lengthmax<< " Total " << total << " "<< lengthmax * numlist << "\n";
-    
+
     std::vector<std::list<std::vector<int>>> edgelists = splitlist(lengthmax, numlist, edges);
 
     #pragma omp parallel for
@@ -216,7 +241,7 @@ int main(int argc, char* argv[]){
       //std::list<std::vector<int>>::iterator edge = std::next(edgelists[i].begin(), avance);
 
       while(!edgelists[i].empty() && avance < edgelists[i].size()){
-	
+
 	std::list<std::vector<int>>::iterator edge = std::next(edgelists[i].begin(), avance);
 	std::list<std::vector<int>>::iterator it = edge;
         bool found = false;
@@ -225,7 +250,7 @@ int main(int argc, char* argv[]){
           it++;
 	  stepi ++;
 	  if((*edge)[0]==(*it)[0] && (*edge)[1]==(*it)[1] && it != edge){
-	    //cout << "verif" <<stepi + avance << " " << edgelists[i].size()<<"\n";  
+	    //cout << "verif" <<stepi + avance << " " << edgelists[i].size()<<"\n";
 	    edgelists[i].erase(edge);
 	    edgelists[i].erase(it);
             std::vector<int> newe(2);
@@ -254,7 +279,7 @@ int main(int argc, char* argv[]){
     }
 
     lenres = edges.size();
-    
+
     if(step > 2){
       //cout << "SHuffle !!! ";
       listShuffle(edges);
@@ -285,6 +310,39 @@ int main(int argc, char* argv[]){
       }
     }
   }
+  run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
+  printf("%f", run_time);
+  */
+  int nbthread = std::thread::hardware_concurrency();
+  Map mymap;
+  std::vector<std::vector<int>> newedges;
+  std::pair<std::map<vector<int>, int>::iterator,bool> ret;
+  //#pragma omp parallel for
+  //for(int i = 0; i < edges.size(); i++ ){
+  lengthmax = total/nbthread;
+  numlist = total/lengthmax + 1;
+  std::vector<std::list<std::vector<int>>> edgelists = splitlist(lengthmax, numlist, edges);
+  for (int i = 0; i < numlist; i++){
+    std::list<std::pair<vector<int>, int>>::iterator edge = edgelists[i].begin();
+    while(edge != edgelists[i].end()){
+
+      std::pair<std::map<vector<int>, int>::iterator,bool> ret;
+      //#pragma omp critical
+      ret = mymap.insert(*edge);
+      if (ret.second == 0){
+        std::vector<int>newe(2);
+        newe[0] =  ret.first->second;
+        newe[1] = (*edge).second;
+        newedges.push_back(newe);
+      }
+      edge++;
+      cout << newedges.size() << "\n";
+      //if(i%5000 == 0){
+      //  cout << i << "\n";
+      //}
+    }
+  }
+  cout << newedges.size() << "\n";
   run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
   printf("%f", run_time);
 }
