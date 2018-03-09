@@ -9,7 +9,7 @@
 #include <fstream>
 #include <algorithm>
 #include <thread>
-#include "util.hpp"
+#include "../util.hpp"
 #include "omp.h"
 #include<random>
 #include<chrono>
@@ -36,22 +36,29 @@ std::vector<std::string> split(const std::string &s, char delim) {
   return elems;
 }
 
-std::vector<std::list<std::pair<vector<int>, int>>>splitlist(int lengthmax, int numlist, const std::list<std::pair<vector<int>, int>> &edges){
-  std::vector<std::list<std::pair<vector<int>, int>>> edgelists(numlist);
+
+std::vector<std::list<std::vector<int>>> splitlist(int lengthmax, int numlist, const std::list<std::vector<int>> &edges){
+//std::vector<std::list<std::pair<vector<int>, int>>>splitlist(int lengthmax, int numlist, const std::list<std::pair<vector<int>, int>> &edges){
+  std::vector<std::list<std::vector<int>>> edgelists(numlist);
+  //std::vector<std::list<std::pair<vector<int>, int>>> edgelists(numlist);
   for (int i = 0; i < numlist; i++){
     int bgn = i * lengthmax;
     int ed = (i+1) * lengthmax;
+    //cout << "  bornes " << bgn<< " " << ed << "\n";
+    //cout << i << "/" << numlist-1 <<"\n";
     if (i == numlist -1){
+      //cout << "  bornes " << i* lengthmax << " " <<  edges.size()<<"\n";
       ed = edges.size();
     }
-    std::list<std::pair<vector<int>, int>> temp(std::next(edges.begin(), bgn), std::next(edges.begin(),ed));
+    //std::list<std::pair<vector<int>, int>> temp(std::next(edges.begin(), bgn), std::next(edges.begin(),ed));
+    std::list<std::vector<int>> temp(std::next(edges.begin(), bgn), std::next(edges.begin(),ed));
     edgelists[i] = temp;
   }
   return(edgelists);
 }
 
 
-std::list<std::pair<std::vector<int>,int>> read_edges(std::string filepath){
+std::list<std::vector<int>> read_edges(std::string filepath){
 
   // Read file
   int n_verts;
@@ -95,34 +102,38 @@ std::list<std::pair<std::vector<int>,int>> read_edges(std::string filepath){
 
   file.close();
 
-  std::list<std::pair<std::vector<int>,int>>edges;
+  std::list<std::vector<int>>edges;
+
   for (int i = 0; i < n_faces; i++){
 
-    std::vector<int> edge1(2);
-    std::vector<int> edge2(2);
-    std::vector<int> edge3(2);
+    std::vector<int> edge1(4);
+    std::vector<int> edge2(4);
+    std::vector<int> edge3(4);
 
     edge1[0] = faces[i][0];
     edge1[1] = faces[i][1];
+    edge1[2] = i;
     edge2[0] = faces[i][0];
     edge2[1] = faces[i][2];
+    edge2[2] = i;
     edge3[0] = faces[i][1];
     edge3[1] = faces[i][2];
+    edge3[2] = i;
 
-    edges.push_back (std::pair<std::vector<int>, int>(edge1, i));
-    edges.push_back (std::pair<std::vector<int>, int>(edge2, i));
-    edges.push_back (std::pair<std::vector<int>, int>(edge3, i));
+    edges.push_back (edge1);
+    edges.push_back (edge2);
+    edges.push_back (edge3);
   }
-
   return(edges);
 
 }
 
-
 int main(int argc, char* argv[]){
 
-  std::string filepath = "Armadillo.off";
-  std::list<std::pair<vector<int>, int>> edges = read_edges(filepath);
+  std::string filepath = "../trimstar.off";
+
+  std::list<std::vector<int>> edges = read_edges(filepath);
+  //std::list<std::pair<vector<int>, int>> edges = read_edges(filepath);
   int total = edges.size();
   double start_time;      // Starting time
   double run_time;        // Timing
@@ -130,55 +141,39 @@ int main(int argc, char* argv[]){
 
   timer.reset();
   start_time = static_cast<double>(timer.getTimeMilliseconds());
-  Map mymap;
-  //parallel
 
-  int nbthread = std::thread::hardware_concurrency();
+//Sequentiel naif
 
+  int partial = total - edges.size();
   std::vector<std::vector<int>> newedges;
-  std::pair<std::map<vector<int>, int>::iterator,bool> ret;
-  int lengthmax = total/nbthread;
-  int numlist = total/lengthmax + 1;
 
-  std::vector<std::list<std::pair<vector<int>, int>>> edgelists = splitlist(lengthmax, numlist, edges);
-  #pragma omp parallel for
-  for (int i = 0; i < numlist; i++){
-    std::list<std::pair<vector<int>, int>>::iterator edge = edgelists[i].begin();
-    while(edge != edgelists[i].end()){
+  while(!edges.empty()){
 
-      std::pair<std::map<vector<int>, int>::iterator,bool> ret;
-      //#pragma omp critical
-      ret = mymap.insert(*edge);
-      if (ret.second == 0){
-        std::vector<int>newe(2);
-        newe[0] =  ret.first->second;
-        newe[1] = (*edge).second;
-        #pragma omp critical
-        newedges.push_back(newe);
+    partial = total - edges.size();
+    std::list<std::vector<int>>::iterator edge = edges.begin();
+    std::list<std::vector<int>>::iterator it = std::next(edge,0);
+    bool found = false;
+
+    while (std::next(it,1) != edges.end() && !found){
+      it++;
+
+      if((*edge)[0]==(*it)[0] && !found && (*edge)[1]==(*it)[1]){
+
+        std::vector<int> newe(2);
+        newe[0] = (*edge)[2];
+        newe[1] = (*it)[2];
+
+	edges.erase(edge);
+	edges.erase(it);
+
+	newedges.push_back(newe);
+        found = true;
       }
-      edge++;
     }
+    //cout << partial << "/" << total << "\n"<< std::flush;
   }
-  run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
-  printf("%f", run_time);
-  //cout << newedges.size();
 
-  /*
-  std::vector<std::vector<int>> newedges;
-  std::pair<std::map<vector<int>, int>::iterator,bool> ret;
-  std::list<std::pair<vector<int>, int>>::iterator edge = edges.begin();
-  while(edge != edges.end()){
-    std::pair<std::map<vector<int>, int>::iterator,bool> ret;
-    ret = mymap.insert(*edge);
-    if (ret.second == 0){
-      std::vector<int>newe(2);
-      newe[0] =  ret.first->second;
-      newe[1] = (*edge).second;
-      newedges.push_back(newe);
-    }
-    edge++;
-  }
   run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
   printf("%f", run_time);
-  */
+  return 0;
 }
