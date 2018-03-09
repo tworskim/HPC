@@ -19,13 +19,6 @@ using namespace std;
 typedef std::map<vector<int>, int> Map;
 mt19937 gen(chrono::system_clock::now().time_since_epoch().count());
 
-template <class T> void listShuffle(list<T> &L){
-  vector<T> V( L.begin(), L.end() );
-  shuffle( V.begin(), V.end(), gen );
-  L.assign( V.begin(), V.end() );
-}
-
-
 std::vector<std::string> split(const std::string &s, char delim) {
   std::stringstream ss(s);
   std::string item;
@@ -50,10 +43,10 @@ std::vector<std::list<std::pair<vector<int>, int>>>splitlist(int lengthmax, int 
   return(edgelists);
 }
 
+// Lecture du fichier et transformation en liste de paire clé-valeur
 
 std::list<std::pair<std::vector<int>,int>> read_edges(std::string filepath){
 
-  // Read file
   int n_verts;
   int n_faces;
   std::vector<std::string> strs;
@@ -124,30 +117,31 @@ int main(int argc, char* argv[]){
   std::string filepath = "Armadillo.off";
   std::list<std::pair<vector<int>, int>> edges = read_edges(filepath);
   int total = edges.size();
-  double start_time;      // Starting time
-  double run_time;        // Timing
+  double start_time;
+  double run_time;
   util::Timer timer;
-
+  
   timer.reset();
   start_time = static_cast<double>(timer.getTimeMilliseconds());
   Map mymap;
   //parallel
 
   int nbthread = std::thread::hardware_concurrency();
-
+  
   std::vector<std::vector<int>> newedges;
   std::pair<std::map<vector<int>, int>::iterator,bool> ret;
   int lengthmax = total/nbthread;
   int numlist = total/lengthmax + 1;
-
   std::vector<std::list<std::pair<vector<int>, int>>> edgelists = splitlist(lengthmax, numlist, edges);
+  
   #pragma omp parallel for
   for (int i = 0; i < numlist; i++){
+    
     std::list<std::pair<vector<int>, int>>::iterator edge = edgelists[i].begin();
-    while(edge != edgelists[i].end()){
-
+    while(edge !=  edgelists[i].end()){
+      
       std::pair<std::map<vector<int>, int>::iterator,bool> ret;
-      //#pragma omp critical
+      #pragma omp critical
       ret = mymap.insert(*edge);
       if (ret.second == 0){
         std::vector<int>newe(2);
@@ -161,8 +155,8 @@ int main(int argc, char* argv[]){
   }
   run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
   printf("%f", run_time);
-  //cout << newedges.size();
 
+  //sequentiel
   /*
   std::vector<std::vector<int>> newedges;
   std::pair<std::map<vector<int>, int>::iterator,bool> ret;
@@ -179,6 +173,5 @@ int main(int argc, char* argv[]){
     edge++;
   }
   run_time  = static_cast<double>(timer.getTimeMilliseconds()) - start_time;
-  printf("%f", run_time);
-  */
+  printf("%f", run_time);*/
 }
